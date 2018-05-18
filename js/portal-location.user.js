@@ -32,13 +32,43 @@ plugin_info.pluginId = 'portal-locations';
 
 
 // PLUGIN START ////////////////////////////////////////////////////////
+  class Portal {
+    constructor(json) {
+      this.lat = json.lat;
+      this.lng = json.lng;
+      this.latLng = L.latLng(this.lat, this.lng);
+      this.latLngStr = this.lat + ',' + this.lng;
+      this.date = (json.date == null) ? Date.now() : json.date;
+      this.name = (json.name == null) ? '' : json.name;
+      this.sponsored = this.name.search(/ローソン/) != -1;
+      this.guid = json.guid;
+    }
+
+    isNew() {
+      return (Date.now() - this.date) < (1000 * 60 * 60 * 24 * 3);
+    }
+
+    draw(layer) {
+      let property = {color: 'orange', weight: 7, opacity: 0.7, clickable: true, fill:true, fillOpacity:1};
+      if (this.isNew()) {
+        property = {color: 'red', weight: 10, opacity: 1, clickable: true, fill:true, fillOpacity:1};
+      }
+      if (map.getZoom() > 14 || this.isNew()) {
+        let circle = L.circle([this.lat,this.lng], 5, property);
+        let guid = this.guid;
+        circle.on('click', function(){window.renderPortalDetails(guid);});
+        layer.addLayer(circle);
+      }
+    }
+    
+  }
 // use own namespace for plugin
 window.plugin.portalLocations = function() {};
-window.plugin.portalLocations.submissions = {};
+window.plugin.portalLocations.storageKey = 'portallocations';
+window.plugin.portalLocations.cache = {};
+window.plugin.portalLocations.cells = {};
 window.plugin.portalLocations.portalLayer = null;
 window.plugin.portalLocations.s2CellLayer = null;
-window.plugin.portalLocations.cells = {};
-window.plugin.portalLocations.portalGIO = [];
 window.plugin.portalLocations.setupCSS = function() {
   $("<style>").prop("type", "text/css").html('' +
    '.portalLocations-icon{' +
@@ -58,70 +88,89 @@ window.plugin.portalLocations.updatePortalLocations = function() {
   window.plugin.portalLocations.s2CellLayer.clearLayers();
 
   var guid,point;
-  //TODO portalsはそのまま使えるのでは？
-  console.log("portal:"+Object.keys(window.portals).length);
   for (guid in window.portals) {
-    var p = window.portals[guid];
-    var latLng = p.getLatLng();
-    if (window.plugin.portalLocations.portalGIO.indexOf(latLng.toString()) == -1) {
-      window.plugin.portalLocations.portalGIO.push(latLng.toString());
-      var cell = S2.S2Cell.FromLatLng(latLng, 14);
-      var key = cell.toString();
-      if (window.plugin.portalLocations.cells[key] == null) {
- 				window.plugin.portalLocations.cells[key] = {};
-				window.plugin.portalLocations.cells[key].portals = [];
-				window.plugin.portalLocations.cells[key].cell = cell;
-        window.plugin.portalLocations.cells[key].corner = cell.getCornerLatLngs();
-      }
-      window.plugin.portalLocations.cells[key].portals.push(latLng);
+    let p = window.portals[guid];
+    let latLng = p.getLatLng();
+    if (window.plugin.portalLocations.cache[latLng.toString()] == null) {
+      window.plugin.portalLocations.cache[latLng.toString()] =
+        new Portal(Object.assign(latLng, {name:p.options.data.title, guid:guid}));
+    } else if (window.plugin.portalLocations.cache[latLng.toString()].name == "") {
+      window.plugin.portalLocations.cache[latLng.toString()].name = p.options.data.title;
     }
+    window.plugin.portalLocations.cache[latLng.toString()].guid = guid;
   }
 
-  var bounds = map.getBounds();
-  var portalOptions = {color: 'orange', weight: 7, opacity: 0.5, clickable: false, fill:true };
-  var cellOptionsKey = [1,5];
-  var cellOptions = [];
-  cellOptions[-1] = {color: 'blue', weight: 3, opacity: 0.1, clickable: false, fill:true };
-  cellOptions[0] = cellOptions[1] = {color: 'yellow', weight: 3, opacity: 0.5, clickable: false, fill:true };
-  console.log("zoom"+map.getZoom());
-  for (key in window.plugin.portalLocations.cells) {
-    var corner = window.plugin.portalLocations.cells[key].corner;
-    if (bounds.contains(new L.LatLng(corner[0].lat,corner[0].lng)) ||
-        bounds.contains(new L.LatLng(corner[1].lat,corner[1].lng)) ||
-        bounds.contains(new L.LatLng(corner[2].lat,corner[2].lng)) ||
-        bounds.contains(new L.LatLng(corner[3].lat,corner[3].lng))) {
-      for (p in window.plugin.portalLocations.cells[key].portals) {
-        var c = L.circle (window.plugin.portalLocations.cells[key].portals[p], 5, portalOptions);
-        window.plugin.portalLocations.portalLayer.addLayer(c);
-      }
+  // キャッシュ 書き込み
+  localStorage.setItem(window.plugin.portalLocations.storageKey, JSON.stringify(window.plugin.portalLocations.cache));
 
-      var polygon = L.polygon (corner , cellOptions[cellOptionsKey.indexOf(window.plugin.portalLocations.cells[key].portals.length)] );
-      window.plugin.portalLocations.s2CellLayer.addLayer(polygon);
-      var center = polygon.getBounds().getCenter();
-      var label = L.marker(center, {
-        icon: L.divIcon({
-          clickable: true,
-          className: 'portalLocations-icon',
-          iconSize: [50,50],
-          html: window.plugin.portalLocations.cells[key].portals.length
-        })
-      });
-      label.addTo(window.plugin.portalLocations.s2CellLayer);      
+  let drawCells = {};
+  let bounds = map.getBounds();
+  let cellOptionsKey = [1,5,19,4,18];
+  let cellOptions = [];
+  cellOptions[-1] = {color: 'blue', weight: 3, opacity: 0.1, clickable: false, fill:true };
+  cellOptions[0] = cellOptions[1] = cellOptions[2] = {color: 'red', weight: 3, opacity: 0.5, clickable: false, fill:true };
+  cellOptions[3] = cellOptions[4] = {color: 'yellow', weight: 3, opacity: 0.5, clickable: false, fill:true };
+  let cell17Options = {color: 'green', weight: 3, opacity: 0.1, clickable: false, fill:true };
+//  console.log("zoom"+map.getZoom());
+  for (let ckey in window.plugin.portalLocations.cache) {
+    let portal = window.plugin.portalLocations.cache[ckey];
+    // スポンサーは無視
+    if (portal == null || portal.sponsored) {
+      continue;
     }
-    var mincellOptions = {color: 'green', weight: 3, opacity: 0.1, clickable: false, fill:true };
-    if (map.getZoom() > 15) {
-      for (pKey in window.plugin.portalLocations.cells[key].portals) {
-        var gio = window.plugin.portalLocations.cells[key].portals[pKey];
-        if (bounds.contains(gio)) {
-          var polygon = L.polygon (S2.S2Cell.FromLatLng(gio, 17).getCornerLatLngs() , mincellOptions );
-          window.plugin.portalLocations.s2CellLayer.addLayer(polygon);
-        }
+    let cell = S2.S2Cell.FromLatLng(portal.latLng, 14);
+    let key = cell.toString();
+    if (window.plugin.portalLocations.cells[key] == null) {
+      window.plugin.portalLocations.cells[key] = {};
+      window.plugin.portalLocations.cells[key].portals = {};
+      window.plugin.portalLocations.cells[key].cell = cell;
+      window.plugin.portalLocations.cells[key].corner = cell.getCornerLatLngs();
+      window.plugin.portalLocations.cells[key].cell17 = {};
+    }
+    if (window.plugin.portalLocations.cells[key].portals[portal.latLngStr] == null) {
+      window.plugin.portalLocations.cells[key].portals[portal.latLngStr] = portal;
+    }
+    let cell17 = S2.S2Cell.FromLatLng(portal.latLng, 17);
+    window.plugin.portalLocations.cells[key].cell17[cell17.toString()] = cell17;
+    if (bounds.contains(portal.latLng)) {
+      portal.draw(window.plugin.portalLocations.portalLayer);
+      if (drawCells[key] == null) {
+        drawCells[key] = window.plugin.portalLocations.cells[key];
+      }
+    }
+  }
+  for (let key in drawCells) {
+    let corner = drawCells[key].corner;
+    let cell17Num = Object.keys(drawCells[key].cell17).length;
+    let options = cellOptions[cellOptionsKey.indexOf(cell17Num)];
+    let polygon = L.polygon (corner , options );
+    window.plugin.portalLocations.s2CellLayer.addLayer(polygon);
+    let center = polygon.getBounds().getCenter();
+    let label = L.marker(center, {
+      icon: L.divIcon({
+        clickable: true,
+        className: 'portalLocations-icon',
+        iconSize: [50,50],
+        html: cell17Num + "/" + Object.keys(drawCells[key].portals).length
+      })
+    });
+    label.addTo(window.plugin.portalLocations.s2CellLayer);
+    if (map.getZoom() > 14) {
+      for (let pKey in drawCells[key].cell17) {
+        let cell17 = drawCells[key].cell17[pKey];
+        let polygon17 = L.polygon (cell17.getCornerLatLngs() , cell17Options );
+        window.plugin.portalLocations.s2CellLayer.addLayer(polygon17);
       }
     }
   }
 };
 
 var setup = function() {
+  // キャッシュ読み込み
+  let storage = localStorage.getItem(window.plugin.portalLocations.storageKey) == null ? {} : JSON.parse(localStorage.getItem(window.plugin.portalLocations.storageKey));
+  for (let key in storage) {
+    window.plugin.portalLocations.cache[key] = new Portal(storage[key]);
+  }
   window.plugin.portalLocations.setupCSS();
 
   window.plugin.portalLocations.portalLayer = L.layerGroup();
@@ -131,6 +180,7 @@ var setup = function() {
   addLayerGroup('Level14S2Cell', window.plugin.portalLocations.s2CellLayer, true);
 
   window.addHook('mapDataRefreshEnd', function() { window.plugin.portalLocations.updatePortalLocations(); });
+  window.addHook('mapDataRefreshStart', function() { window.plugin.portalLocations.updatePortalLocations(); });
 };
 
 // PLUGIN END //////////////////////////////////////////////////////////
@@ -148,5 +198,3 @@ var info = {};
 if (typeof GM_info !== 'undefined' && GM_info && GM_info.script) info.script = { version: GM_info.script.version, name: GM_info.script.name, description: GM_info.script.description };
 script.appendChild(document.createTextNode('('+ wrapper +')('+JSON.stringify(info)+');'));
 (document.body || document.head || document.documentElement).appendChild(script);
-
-
