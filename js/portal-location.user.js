@@ -2,7 +2,7 @@
 // @id             iitc-plugin-portal-location
 // @name           IITC-ja plugin: Portal Location
 // @category       Layer
-// @version        0.0.1
+// @version        0.0.2
 // @namespace      https://github.com/jonatkins/ingress-intel-total-conversion
 // @downloadURL    
 // @description    Show portal locations on the map.
