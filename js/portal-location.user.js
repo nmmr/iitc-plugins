@@ -2,8 +2,8 @@
 // @id             iitc-plugin-portal-location
 // @name           IITC-ja plugin: Portal Location
 // @category       Layer
-// @version        0.0.2
-// @namespace      https://github.com/jonatkins/ingress-intel-total-conversion
+// @version        0.0.3
+// @namespace      https://sites.google.com/site/stocksite123456/
 // @downloadURL    
 // @description    Show portal locations on the map.
 // @include        https://www.ingress.com/intel*
@@ -14,10 +14,9 @@
 // @include        http://www.ingress.com/mission/*
 // @match          https://www.ingress.com/mission/*
 // @match          http://www.ingress.com/mission/*
-// @require        https://sites.google.com/site/stocksite123456/s2geometry.js
+// @require        https://raw.githubusercontent.com/hunterjm/s2-geometry.js/master/src/s2geometry.js
 // @grant          none
 // ==/UserScript==
-
 function wrapper(plugin_info) {
 // ensure plugin framework is there, even if iitc is not yet loaded
 if(typeof window.plugin !== 'function') window.plugin = function() {};
@@ -40,7 +39,9 @@ plugin_info.pluginId = 'portal-locations';
       this.latLngStr = this.lat + ',' + this.lng;
       this.date = (json.date == null) ? Date.now() : json.date;
       this.name = (json.name == null) ? '' : json.name;
-      this.sponsored = this.name.search(/ローソン/) != -1;
+      this.description = (json.description == null) ? '' : json.description;
+      this.candidate = (json.candidate == null) ? false : json.candidate;
+      this.sponsored = this.name.search(/ローソン|Lawson/) != -1;
       this.guid = json.guid;
     }
 
@@ -49,22 +50,27 @@ plugin_info.pluginId = 'portal-locations';
     }
 
     draw(layer) {
-      let property = {color: 'orange', weight: 7, opacity: 0.7, clickable: true, fill:true, fillOpacity:1};
+      let property = {color: 'orange', weight: 7, opacity: 1, clickable: true, fill:true, fillOpacity:1};
       if (this.isNew()) {
         property = {color: 'red', weight: 10, opacity: 1, clickable: true, fill:true, fillOpacity:1};
       }
       if (map.getZoom() > 14 || this.isNew()) {
         let circle = L.circle([this.lat,this.lng], 5, property);
         let guid = this.guid;
-        circle.on('click', function(){window.renderPortalDetails(guid);});
+        let img = 'https://maps.googleapis.com/maps/api/streetview?size=900x900&location=' + this.latLngStr + '%20&fov=180&heading=235&pitch=10&key=AIzaSyDkGlgQ-jePqG8C5bRpNXNh0r6mNkKmTlA';
+        let link = 'http://maps.google.com/maps?q=&layer=c&cbll=' + this.latLngStr;
+        circle.on('click', function(){
+          window.renderPortalDetails(guid);
+        });
         layer.addLayer(circle);
       }
     }
-    
   }
 // use own namespace for plugin
 window.plugin.portalLocations = function() {};
 window.plugin.portalLocations.storageKey = 'portallocations';
+window.plugin.portalLocations.apiStorageKey = 'streetviewapi';
+window.plugin.portalLocations.svApiKey = '';
 window.plugin.portalLocations.cache = {};
 window.plugin.portalLocations.cells = {};
 window.plugin.portalLocations.portalLayer = null;
@@ -83,7 +89,14 @@ window.plugin.portalLocations.setupCSS = function() {
    '}'
   ).appendTo("head");
 };
-window.plugin.portalLocations.updatePortalLocations = function() {
+  var input=document.createElement("a");
+  input.innerHTML = "export";
+  input.target = '_blank';
+  input.download = 'portalData.txt';
+  input.setAttribute("style", "font-size:18px;position:absolute;top:10px;left:100px;color:white;cursor:pointer;pointer-events:all;z-index:2999;");
+//  document.body.appendChild(input);
+
+  window.plugin.portalLocations.updatePortalLocations = function() {
   window.plugin.portalLocations.portalLayer.clearLayers();
   window.plugin.portalLocations.s2CellLayer.clearLayers();
 
@@ -104,13 +117,15 @@ window.plugin.portalLocations.updatePortalLocations = function() {
   localStorage.setItem(window.plugin.portalLocations.storageKey, JSON.stringify(window.plugin.portalLocations.cache));
 
   let drawCells = {};
+  let drawPortal = [];
   let bounds = map.getBounds();
   let cellOptionsKey = [1,5,19,4,18];
   let cellOptions = [];
   cellOptions[-1] = {color: 'blue', weight: 3, opacity: 0.1, clickable: false, fill:true };
   cellOptions[0] = cellOptions[1] = cellOptions[2] = {color: 'red', weight: 3, opacity: 0.5, clickable: false, fill:true };
   cellOptions[3] = cellOptions[4] = {color: 'yellow', weight: 3, opacity: 0.5, clickable: false, fill:true };
-  let cell17Options = {color: 'green', weight: 3, opacity: 0.1, clickable: false, fill:true };
+  let cell17Options = {color: 'green', weight: 3, opacity: 0.1, clickable: false, fill:true, fillOpacity:0.5};
+  let cell17DuplicatedOptions = {color: 'yellow', weight: 3, opacity: 0.1, clickable: false, fill:true, fillOpacity:0.5 };
 //  console.log("zoom"+map.getZoom());
   for (let ckey in window.plugin.portalLocations.cache) {
     let portal = window.plugin.portalLocations.cache[ckey];
@@ -129,11 +144,16 @@ window.plugin.portalLocations.updatePortalLocations = function() {
     }
     if (window.plugin.portalLocations.cells[key].portals[portal.latLngStr] == null) {
       window.plugin.portalLocations.cells[key].portals[portal.latLngStr] = portal;
+      let cell17 = S2.S2Cell.FromLatLng(portal.latLng, 17);
+      if (window.plugin.portalLocations.cells[key].cell17[cell17.toString()] == null) {
+        window.plugin.portalLocations.cells[key].cell17[cell17.toString()] = {cell: cell17, count: 1};
+      } else {
+        window.plugin.portalLocations.cells[key].cell17[cell17.toString()].count++;
+      }
     }
-    let cell17 = S2.S2Cell.FromLatLng(portal.latLng, 17);
-    window.plugin.portalLocations.cells[key].cell17[cell17.toString()] = cell17;
+
     if (bounds.contains(portal.latLng)) {
-      portal.draw(window.plugin.portalLocations.portalLayer);
+      drawPortal.push(portal);
       if (drawCells[key] == null) {
         drawCells[key] = window.plugin.portalLocations.cells[key];
       }
@@ -145,24 +165,38 @@ window.plugin.portalLocations.updatePortalLocations = function() {
     let options = cellOptions[cellOptionsKey.indexOf(cell17Num)];
     let polygon = L.polygon (corner , options );
     window.plugin.portalLocations.s2CellLayer.addLayer(polygon);
+    if (map.getZoom() > 13) {
     let center = polygon.getBounds().getCenter();
-    let label = L.marker(center, {
-      icon: L.divIcon({
-        clickable: true,
-        className: 'portalLocations-icon',
-        iconSize: [50,50],
-        html: cell17Num + "/" + Object.keys(drawCells[key].portals).length
-      })
-    });
-    label.addTo(window.plugin.portalLocations.s2CellLayer);
+      let label = L.marker(center, {
+        icon: L.divIcon({
+          clickable: true,
+          className: 'portalLocations-icon',
+          iconSize: [50,50],
+          html: cell17Num + "/" + Object.keys(drawCells[key].portals).length
+        })
+      });
+      label.addTo(window.plugin.portalLocations.s2CellLayer);      
+    }
     if (map.getZoom() > 14) {
       for (let pKey in drawCells[key].cell17) {
         let cell17 = drawCells[key].cell17[pKey];
-        let polygon17 = L.polygon (cell17.getCornerLatLngs() , cell17Options );
+        let polygon17 = L.polygon (cell17.cell.getCornerLatLngs() , (cell17.count > 1) ? cell17DuplicatedOptions : cell17Options );
         window.plugin.portalLocations.s2CellLayer.addLayer(polygon17);
       }
     }
   }
+  drawPortal.forEach(function(e, i) {e.draw(window.plugin.portalLocations.portalLayer);});
+  // ポータル情報書き出し
+  let exPortal = {};
+  for (let key in window.plugin.portalLocations.cache) {
+    let p = window.plugin.portalLocations.cache[key];
+    let pLatLng = p.lat + "," + p.lng;
+    if (bounds.contains(p.latLng)) {
+      exPortal[pLatLng] = {location: pLatLng, name: p.name, type: "ポータル"};
+    }
+  }
+  let data = new Blob([JSON.stringify(exPortal)], {type: "text/plain"});
+  input.href = URL.createObjectURL(data);
 };
 
 var setup = function() {

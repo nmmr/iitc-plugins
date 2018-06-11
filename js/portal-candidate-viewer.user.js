@@ -2,9 +2,9 @@
 // @id             iitc-plugin-portal-candidate-viewer
 // @name           IITC-ja plugin: Portal Candidate Viewer
 // @category       Layer
-// @version        0.0.1
+// @version        0.0.2
 // @namespace      https://sites.google.com/site/stocksite123456/
-// @downloadURL    
+// @downloadURL
 // @description    Show portal candidate on the map.
 // @include        https://www.ingress.com/intel*
 // @include        http://www.ingress.com/intel*
@@ -14,7 +14,7 @@
 // @include        http://www.ingress.com/mission/*
 // @match          https://www.ingress.com/mission/*
 // @match          http://www.ingress.com/mission/*
-// @require        https://sites.google.com/site/stocksite123456/s2geometry.js
+// @require        
 // @grant          GM_xmlhttpRequest
 // ==/UserScript==
 
@@ -55,7 +55,7 @@ window.plugin.portalCandidate.updatePortalLocations = function() {
 
   var bounds = map.getBounds();
   var candidateOptions = {color: 'red', weight: 7, opacity: 0.5, clickable: false , fill:true};
-  for (key in window.plugin.portalCandidate.candidate) {
+  for (let key in window.plugin.portalCandidate.candidate) {
     var latlng = new L.LatLng(key.split(',')[1], key.split(',')[0]);
     if (bounds.contains(latlng)) {
       var c = L.circle (latlng, 5, candidateOptions);
@@ -110,9 +110,9 @@ GM_xmlhttpRequest({
         var candidate = {}
         var dom = new DOMParser().parseFromString(responseDetails.responseText, 'text/xml');
         var place = dom.getElementsByTagName('Placemark');
-        for (key in place) {
+        for (let key in place) {
             if (typeof place[key].getElementsByTagName == "function") {
-              candidate[place[key].getElementsByTagName('coordinates')[0].innerHTML] = place[key].getElementsByTagName('name')[0].innerHTML;              
+              candidate[place[key].getElementsByTagName('coordinates')[0].innerHTML] = place[key].getElementsByTagName('name')[0].innerHTML;
             }
         }
 // inject code into site context
@@ -123,5 +123,3 @@ script.appendChild(document.createTextNode('('+ wrapper +')('+JSON.stringify(inf
 (document.body || document.head || document.documentElement).appendChild(script);
     }
 } );
-
-
