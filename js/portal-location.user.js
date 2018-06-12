@@ -57,8 +57,6 @@ plugin_info.pluginId = 'portal-locations';
       if (map.getZoom() > 14 || this.isNew()) {
         let circle = L.circle([this.lat,this.lng], 5, property);
         let guid = this.guid;
-        let img = 'https://maps.googleapis.com/maps/api/streetview?size=900x900&location=' + this.latLngStr + '%20&fov=180&heading=235&pitch=10&key=AIzaSyDkGlgQ-jePqG8C5bRpNXNh0r6mNkKmTlA';
-        let link = 'http://maps.google.com/maps?q=&layer=c&cbll=' + this.latLngStr;
         circle.on('click', function(){
           window.renderPortalDetails(guid);
         });
