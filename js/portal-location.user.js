@@ -2,21 +2,22 @@
 // @id             iitc-plugin-portal-location
 // @name           IITC-ja plugin: Portal Location
 // @category       Layer
-// @version        0.0.3
+// @version        0.0.4
 // @namespace      https://sites.google.com/site/stocksite123456/
-// @downloadURL    
+// @downloadURL
 // @description    Show portal locations on the map.
-// @include        https://www.ingress.com/intel*
-// @include        http://www.ingress.com/intel*
-// @match          https://www.ingress.com/intel*
-// @match          http://www.ingress.com/intel*
-// @include        https://www.ingress.com/mission/*
-// @include        http://www.ingress.com/mission/*
-// @match          https://www.ingress.com/mission/*
-// @match          http://www.ingress.com/mission/*
+// @include        https://intel.ingress.com/intel*
+// @include        http://intel.ingress.com/intel*
+// @match          https://intel.ingress.com/intel*
+// @match          http://intel.ingress.com/intel*
+// @include        https://intel.ingress.com/mission/*
+// @include        http://intel.ingress.com/mission/*
+// @match          https://intel.ingress.com/mission/*
+// @match          http://intel.ingress.com/mission/*
 // @require        https://raw.githubusercontent.com/hunterjm/s2-geometry.js/master/src/s2geometry.js
 // @grant          none
 // ==/UserScript==
+// TODO 候補用の配列、描画、ポータルデテールで名称説明ストビュー表示、ストビューリンク
 function wrapper(plugin_info) {
 // ensure plugin framework is there, even if iitc is not yet loaded
 if(typeof window.plugin !== 'function') window.plugin = function() {};
@@ -24,7 +25,7 @@ if(typeof window.plugin !== 'function') window.plugin = function() {};
 //PLUGIN AUTHORS: writing a plugin outside of the IITC build environment? if so, delete these lines!!
 //(leaving them in place might break the 'About IITC' page or break update checks)
 plugin_info.buildName = 'portal-locations';
-plugin_info.dateTimeVersion = '20180115';
+plugin_info.dateTimeVersion = '20181113';
 plugin_info.pluginId = 'portal-locations';
 //END PLUGIN AUTHORS NOTE
 
@@ -41,7 +42,7 @@ plugin_info.pluginId = 'portal-locations';
       this.name = (json.name == null) ? '' : json.name;
       this.description = (json.description == null) ? '' : json.description;
       this.candidate = (json.candidate == null) ? false : json.candidate;
-      this.sponsored = this.name.search(/ローソン|Lawson/) != -1;
+      this.sponsored = this.name.search(/ローソン|Lawson|ソフトバンク|Softbank|ワイモバイル|Y\!mobile/) != -1;
       this.guid = json.guid;
     }
 
@@ -50,17 +51,22 @@ plugin_info.pluginId = 'portal-locations';
     }
 
     draw(layer) {
-      let property = {color: 'orange', weight: 7, opacity: 1, clickable: true, fill:true, fillOpacity:1};
+      let property = {color: 'orange', weight: 3, opacity: 1, clickable: true, fill:true, fillOpacity:0.1};
       if (this.isNew()) {
-        property = {color: 'red', weight: 10, opacity: 1, clickable: true, fill:true, fillOpacity:1};
+        property = {color: 'red', weight: 3, opacity: 1, clickable: true, fill:true, fillOpacity:0.1};
       }
       if (map.getZoom() > 14 || this.isNew()) {
-        let circle = L.circle([this.lat,this.lng], 5, property);
+        let circle = L.circle([this.lat,this.lng], 20, property);
+        let center = L.circle([this.lat,this.lng], 1, property);
         let guid = this.guid;
-        circle.on('click', function(){
+        center.on('click', () => {
+          if (guid == null) {
+            return null;
+          }
           window.renderPortalDetails(guid);
         });
         layer.addLayer(circle);
+        layer.addLayer(center);
       }
     }
   }
@@ -73,6 +79,8 @@ window.plugin.portalLocations.cache = {};
 window.plugin.portalLocations.cells = {};
 window.plugin.portalLocations.portalLayer = null;
 window.plugin.portalLocations.s2CellLayer = null;
+window.plugin.portalLocations.p2PCellLayer = null;
+window.plugin.portalLocations.cMode = null;
 window.plugin.portalLocations.setupCSS = function() {
   $("<style>").prop("type", "text/css").html('' +
    '.portalLocations-icon{' +
@@ -87,12 +95,37 @@ window.plugin.portalLocations.setupCSS = function() {
    '}'
   ).appendTo("head");
 };
-  var input=document.createElement("a");
-  input.innerHTML = "export";
+/*
+  var container = document.createElement("div");
+  container.setAttribute("style", "padding:5px 5px 5px 5px;border-radius:5px 5px 5px 5px;border:1px;background-color:white;position:absolute;top:10px;left:50px;color:white;cursor:pointer;pointer-events:all;z-index:2999;");
+  var add = document.createElement("input");
+  add.type = "button";
+  add.value = "候補追加";
+  add.addEventListener("click", () => {
+    changeCMode("add");
+  });
+  container.appendChild(add);
+  var input = document.createElement("a");
+  input.innerHTML = "[↓]";
   input.target = '_blank';
   input.download = 'portalData.txt';
-  input.setAttribute("style", "font-size:18px;position:absolute;top:10px;left:100px;color:white;cursor:pointer;pointer-events:all;z-index:2999;");
-//  document.body.appendChild(input);
+  input.setAttribute("style", "font-size:10px;");
+  container.appendChild(input);
+  document.body.appendChild(container);
+*/
+
+  function changeCMode(mode) {
+    switch(mode) {
+      case "add":
+        window.plugin.portalLocations.cMode = mode;
+        container.style.backgroundColor = "red";
+        break;
+      case "":
+        window.plugin.portalLocations.cMode = "";
+        container.style.backgroundColor = "white";
+        break;
+    }
+  }
 
   window.plugin.portalLocations.updatePortalLocations = function() {
   window.plugin.portalLocations.portalLayer.clearLayers();
@@ -112,7 +145,15 @@ window.plugin.portalLocations.setupCSS = function() {
   }
 
   // キャッシュ 書き込み
-  localStorage.setItem(window.plugin.portalLocations.storageKey, JSON.stringify(window.plugin.portalLocations.cache));
+  let item = {};
+  for (let key in window.plugin.portalLocations.cache) {
+    item[key] = window.plugin.portalLocations.cache[key].date;
+  }
+  try {
+    localStorage.setItem(window.plugin.portalLocations.storageKey, JSON.stringify(item));
+  } catch (e) {
+    localStorage.clear();
+  }
 
   let drawCells = {};
   let drawPortal = [];
@@ -173,7 +214,7 @@ window.plugin.portalLocations.setupCSS = function() {
           html: cell17Num + "/" + Object.keys(drawCells[key].portals).length
         })
       });
-      label.addTo(window.plugin.portalLocations.s2CellLayer);      
+      label.addTo(window.plugin.portalLocations.s2CellLayer);
     }
     if (map.getZoom() > 14) {
       for (let pKey in drawCells[key].cell17) {
@@ -199,20 +240,34 @@ window.plugin.portalLocations.setupCSS = function() {
 
 var setup = function() {
   // キャッシュ読み込み
-  let storage = localStorage.getItem(window.plugin.portalLocations.storageKey) == null ? {} : JSON.parse(localStorage.getItem(window.plugin.portalLocations.storageKey));
+  let storage = localStorage.getItem(window.plugin.portalLocations.storageKey);
+  if (storage == null) {
+    storage = {};
+  } else {
+    storage = JSON.parse(storage);
+  }
   for (let key in storage) {
-    window.plugin.portalLocations.cache[key] = new Portal(storage[key]);
+    let value = storage[key];
+    window.plugin.portalLocations.cache[key] = new Portal(value);
   }
   window.plugin.portalLocations.setupCSS();
 
   window.plugin.portalLocations.portalLayer = L.layerGroup();
   window.plugin.portalLocations.s2CellLayer = L.layerGroup();
+  window.plugin.portalLocations.p2PCellLayer = L.layerGroup();
 
   addLayerGroup('PortalLocations', window.plugin.portalLocations.portalLayer, true);
   addLayerGroup('Level14S2Cell', window.plugin.portalLocations.s2CellLayer, true);
 
   window.addHook('mapDataRefreshEnd', function() { window.plugin.portalLocations.updatePortalLocations(); });
   window.addHook('mapDataRefreshStart', function() { window.plugin.portalLocations.updatePortalLocations(); });
+
+  map.on('click', function (e) {
+    if (window.plugin.portalLocations.cMode == "add") {
+      alert("" + e.latlng);
+      changeCMode("");
+    }
+  });
 };
 
 // PLUGIN END //////////////////////////////////////////////////////////
