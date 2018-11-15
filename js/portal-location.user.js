@@ -2,7 +2,7 @@
 // @id             iitc-plugin-portal-location
 // @name           IITC-ja plugin: Portal Location
 // @category       Layer
-// @version        0.0.4
+// @version        0.0.5
 // @namespace      https://sites.google.com/site/stocksite123456/
 // @downloadURL
 // @description    Show portal locations on the map.
@@ -143,7 +143,6 @@ window.plugin.portalLocations.setupCSS = function() {
     }
     window.plugin.portalLocations.cache[latLng.toString()].guid = guid;
   }
-
   // キャッシュ 書き込み
   let item = {};
   for (let key in window.plugin.portalLocations.cache) {
@@ -226,6 +225,7 @@ window.plugin.portalLocations.setupCSS = function() {
   }
   drawPortal.forEach(function(e, i) {e.draw(window.plugin.portalLocations.portalLayer);});
   // ポータル情報書き出し
+      /*
   let exPortal = {};
   for (let key in window.plugin.portalLocations.cache) {
     let p = window.plugin.portalLocations.cache[key];
@@ -236,6 +236,7 @@ window.plugin.portalLocations.setupCSS = function() {
   }
   let data = new Blob([JSON.stringify(exPortal)], {type: "text/plain"});
   input.href = URL.createObjectURL(data);
+  */
 };
 
 var setup = function() {
@@ -248,7 +249,8 @@ var setup = function() {
   }
   for (let key in storage) {
     let value = storage[key];
-    window.plugin.portalLocations.cache[key] = new Portal(value);
+    let latLng = key.replace('LatLng(', '').replace(')', '').split(',');
+    window.plugin.portalLocations.cache[key] = new Portal({lat:latLng[0], lng:latLng[1], date: value});
   }
   window.plugin.portalLocations.setupCSS();
 
