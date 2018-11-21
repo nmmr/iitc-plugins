@@ -1,10 +1,12 @@
 // ==UserScript==
 // @id             iitc-plugin-portal-location
 // @name           IITC-ja plugin: Portal Location
+// @author         nmmr
 // @category       Layer
-// @version        0.0.5
-// @namespace      https://sites.google.com/site/stocksite123456/
-// @downloadURL
+// @version        0.0.6
+// @namespace      https://github.com/nmmr/iitc-plugins
+// @updateURL      https://github.com/nmmr/iitc-plugins/raw/master/js/portal-location.user.js
+// @downloadURL    https://github.com/nmmr/iitc-plugins/raw/master/js/portal-location.user.js
 // @description    Show portal locations on the map.
 // @include        https://intel.ingress.com/intel*
 // @include        http://intel.ingress.com/intel*
@@ -79,7 +81,7 @@ window.plugin.portalLocations.cache = {};
 window.plugin.portalLocations.cells = {};
 window.plugin.portalLocations.portalLayer = null;
 window.plugin.portalLocations.s2CellLayer = null;
-window.plugin.portalLocations.p2PCellLayer = null;
+//window.plugin.portalLocations.p2PCellLayer = null;
 window.plugin.portalLocations.cMode = null;
 window.plugin.portalLocations.setupCSS = function() {
   $("<style>").prop("type", "text/css").html('' +
@@ -112,7 +114,6 @@ window.plugin.portalLocations.setupCSS = function() {
   input.setAttribute("style", "font-size:10px;");
   container.appendChild(input);
   document.body.appendChild(container);
-*/
 
   function changeCMode(mode) {
     switch(mode) {
@@ -126,6 +127,7 @@ window.plugin.portalLocations.setupCSS = function() {
         break;
     }
   }
+*/
 
   window.plugin.portalLocations.updatePortalLocations = function() {
   window.plugin.portalLocations.portalLayer.clearLayers();
@@ -256,7 +258,7 @@ var setup = function() {
 
   window.plugin.portalLocations.portalLayer = L.layerGroup();
   window.plugin.portalLocations.s2CellLayer = L.layerGroup();
-  window.plugin.portalLocations.p2PCellLayer = L.layerGroup();
+//  window.plugin.portalLocations.p2PCellLayer = L.layerGroup();
 
   addLayerGroup('PortalLocations', window.plugin.portalLocations.portalLayer, true);
   addLayerGroup('Level14S2Cell', window.plugin.portalLocations.s2CellLayer, true);
@@ -264,12 +266,14 @@ var setup = function() {
   window.addHook('mapDataRefreshEnd', function() { window.plugin.portalLocations.updatePortalLocations(); });
   window.addHook('mapDataRefreshStart', function() { window.plugin.portalLocations.updatePortalLocations(); });
 
+/*
   map.on('click', function (e) {
     if (window.plugin.portalLocations.cMode == "add") {
       alert("" + e.latlng);
       changeCMode("");
     }
   });
+*/
 };
 
 // PLUGIN END //////////////////////////////////////////////////////////
